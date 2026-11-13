@@ -31,11 +31,11 @@ class ClockWidget(QWidget):
             dark = self.config.theme == "Dark"
             self.ink = QColor("#f0f2f5" if dark else "#252c36")
             p.setPen(QPen(QColor("#657080"), 1))
-            p.setBrush(
-                Qt.BrushStyle.NoBrush
-                if self.config.transparent
-                else QColor("#272d35" if dark else "#fcfbf7")
-            )
+            # Only the area outside the dial is fully transparent. Keep contrast
+            # beneath the numerals and hands on light and dark desktops alike.
+            face_color = QColor("#272d35" if dark else "#fcfbf7")
+            face_color.setAlpha(240 if self.config.transparent else 255)
+            p.setBrush(face_color)
             p.drawEllipse(QPointF(0, 0), 153, 153)
             minimal = self.config.theme == "Minimal"
             for i in range(60):

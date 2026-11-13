@@ -2,6 +2,7 @@ from dataclasses import replace
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QDialog,
+    QLabel,
     QFormLayout,
     QLineEdit,
     QSpinBox,
@@ -63,6 +64,13 @@ class SettingsWindow(QDialog):
                 control = QLineEdit(value)
             self.controls[name] = control
             form.addRow(label, control)
+        hint = QLabel(
+            "背景透過中は枠なしになります。\n文字盤の外側を透過し、文字盤は読みやすく保ちます。"
+        )
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        for name in ("frameless", "transparent"):
+            self.controls[name].toggled.connect(lambda _checked: self.apply())
         button = QPushButton("適用")
         button.clicked.connect(self.apply)
         form.addRow(button)

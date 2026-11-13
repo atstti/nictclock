@@ -10,12 +10,13 @@ from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QLabel,
-    QPushButton,
     QMenu,
     QSizeGrip,
     QHBoxLayout,
     QMessageBox,
+    QToolButton,
 )
+from icons import tool_icon
 from clock_widget import ClockWidget
 from time_service import TimeService
 from config import load, save
@@ -54,12 +55,21 @@ class Window(QWidget):
         self.status.setStyleSheet("font-size: 10px;")
         layout.addWidget(self.status)
         row = QHBoxLayout()
-        self.sync_button = QPushButton("同期")
+        self.sync_button = QToolButton()
+        self.sync_button.setToolTip("今すぐ同期")
+        self.sync_button.setAccessibleName("今すぐ同期")
+        self.sync_button.setAutoRaise(True)
         self.sync_button.clicked.connect(self.sync)
+        row.addStretch()
         row.addWidget(self.sync_button)
-        settings = QPushButton("設定")
-        settings.clicked.connect(self.settings)
-        row.addWidget(settings)
+        self.settings_button = QToolButton()
+        self.settings_button.setToolTip("設定")
+        self.settings_button.setAccessibleName("設定")
+        self.settings_button.setAutoRaise(True)
+        self.settings_button.clicked.connect(self.settings)
+        row.addStretch()
+        row.addWidget(self.settings_button)
+        row.addStretch()
         self.grip = QSizeGrip(self)
         row.addWidget(self.grip)
         layout.addLayout(row)
@@ -103,20 +113,60 @@ class Window(QWidget):
 
     def apply_visual(self):
         visible = self.isVisible()
-        position = self.pos()
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, self.config.on_top)
-        self.setWindowFlag(
-            Qt.WindowType.FramelessWindowHint,
-            self.config.frameless or self.config.transparent,
+        geometry = self.geometry()
+        flags = self.windowFlags()
+        flags = (
+            (flags | Qt.WindowType.WindowStaysOnTopHint)
+            if self.config.on_top
+            else (flags & ~Qt.WindowType.WindowStaysOnTopHint)
         )
-        self.setAttribute(
-            Qt.WidgetAttribute.WA_TranslucentBackground, self.config.transparent
+        frameless = self.config.frameless or self.config.transparent
+        flags = (
+            (flags | Qt.WindowType.FramelessWindowHint)
+            if frameless
+            else (flags & ~Qt.WindowType.FramelessWindowHint)
         )
+        transparent_changed = (
+            self.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            != self.config.transparent
+        )
+        native_changed = flags != self.windowFlags() or transparent_changed
+        if native_changed:
+            # macOS/Windows need a fresh platform window when changing translucency.
+            self.hide()
+            if self.windowHandle() is not None:
+                self.destroy(True, False)
+            self.setWindowFlags(flags)
+            self.setAttribute(
+                Qt.WidgetAttribute.WA_TranslucentBackground, self.config.transparent
+            )
+            self.setAttribute(
+                Qt.WidgetAttribute.WA_NoSystemBackground, self.config.transparent
+            )
         self.setWindowOpacity(self.config.opacity)
-        self.setStyleSheet(
-            "QLabel { color: %s; }"
-            % ("#eeeeee" if self.config.theme == "Dark" else "#30343b")
+        dark = self.config.theme == "Dark"
+        ink = "#f0f2f5" if dark else "#252c36"
+        self.sync_button.setIcon(tool_icon("sync", ink, self.devicePixelRatioF()))
+        self.settings_button.setIcon(
+            tool_icon("settings", ink, self.devicePixelRatioF())
         )
+        panel = "rgba(39,45,53,225)" if dark else "rgba(252,251,247,235)"
+        self.setStyleSheet(f"""
+            QLabel {{ color: {ink}; }}
+            QToolButton {{ color: {ink}; background: {panel}; border: 1px solid rgba(128,138,150,65);
+                border-radius: 14px; min-width: 28px; max-width: 28px; min-height: 28px;
+                max-height: 28px; padding: 0px; font-size: 19px; }}
+            QToolButton:hover {{ border: 1px solid #df3d4b; }}
+            QToolButton:pressed {{ background: rgba(128,138,150,150); }}
+            QToolButton:disabled {{ color: #888888; border-color: rgba(128,138,150,35); }}
+        """)
+        for label in (self.digital, self.status):
+            label.setStyleSheet(
+                f"background: {panel}; border-radius: 8px; padding: 4px;"
+                + ("font-size: 10px;" if label is self.status else "")
+                if self.config.transparent
+                else ("font-size: 10px;" if label is self.status else "")
+            )
         palette = self.palette()
         palette.setColor(
             self.backgroundRole(),
@@ -129,9 +179,11 @@ class Window(QWidget):
         self.digital.setVisible(self.config.digital)
         self.clock.config = self.config
         self.clock.cache_key = None
+        if native_changed:
+            self.setGeometry(geometry)
         if visible:
             self.show()
-            self.move(position)
+            self.setGeometry(geometry)
 
     def sync(self):
         if (
@@ -280,9 +332,11 @@ class Window(QWidget):
         self.apply_visual()
 
     def eventFilter(self, obj, event):
-        if obj is self or (isinstance(obj, QWidget) and self.isAncestorOf(obj)):
-            if isinstance(obj, (QPushButton, QSizeGrip)):
-                return super().eventFilter(obj, event)
+        # Settings is a separate top-level window, even though it has this parent.
+        # Never steal mouse presses from its checkboxes, fields or other controls.
+        if obj is self or (
+            isinstance(obj, (ClockWidget, QLabel)) and obj.window() is self
+        ):
             if (
                 event.type() == QEvent.Type.MouseButtonPress
                 and event.button() == Qt.MouseButton.LeftButton
