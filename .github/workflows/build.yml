@@ -1,0 +1,30 @@
+name: Native desktop builds
+on: workflow_dispatch
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - if: runner.os == 'macOS'
+        run: bash build_mac.sh
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./build_windows.ps1
+      - if: runner.os == 'macOS'
+        run: ditto -c -k --sequesterRsrc --keepParent dist/NICTAnalogClock.app dist/NICTAnalogClock-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NICTAnalogClock-${{ runner.os }}
+          path: |
+            dist/*.zip
+            dist/*.exe
