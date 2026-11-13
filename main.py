@@ -19,16 +19,17 @@ from PySide6.QtWidgets import (
 from icons import tool_icon
 from clock_widget import ClockWidget
 from time_service import TimeService
-from config import load, save
+from config import Config, load, save
 from settings_window import SettingsWindow
 from autostart import set_enabled
 from ntp_client import query, RateLimitError
 
 
 class Window(QWidget):
-    def __init__(self):
+    def __init__(self, smoke_test=False):
         super().__init__()
-        self.config = load()
+        self.smoke_test = smoke_test
+        self.config = Config() if smoke_test else load()
         self.service = TimeService()
         self.future = None
         self.failures = 0
@@ -187,6 +188,8 @@ class Window(QWidget):
             self.setGeometry(geometry)
 
     def sync(self):
+        if self.smoke_test:
+            return
         if (
             self.future is not None
             or time.monotonic() - self.last_attempt < 60
@@ -375,10 +378,11 @@ class Window(QWidget):
     def closeEvent(self, event):
         self.timer.stop()
         self.config.geometry = bytes(self.saveGeometry().toBase64()).decode()
-        try:
-            save(self.config)
-        except OSError:
-            pass
+        if not self.smoke_test:
+            try:
+                save(self.config)
+            except OSError:
+                pass
         event.accept()
 
 
@@ -389,8 +393,11 @@ def main():
     from PySide6.QtNetwork import QNetworkInformation
 
     QNetworkInformation.loadDefaultBackend()
-    window = Window()
+    smoke_test = "--smoke-test" in sys.argv
+    window = Window(smoke_test=smoke_test)
     window.show()
+    if smoke_test:
+        QTimer.singleShot(1000, window.close)
     return app.exec()
 
 

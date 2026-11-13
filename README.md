@@ -2,7 +2,19 @@
 
 Python 3.11以上とPySide6で動作するmacOS / Windows 10・11向けアナログ時計です。NICTの公式アプリではありません。OSの時計は変更しません。
 
-## macOSでインストール・起動
+## 配布版のダウンロード
+
+[GitHub Releases](https://github.com/atstti/nictclock/releases/latest)から、お使いの機種に合うファイルを取得してください。Pythonのインストールは不要です。
+
+- Apple Silicon Mac: `NICTAnalogClock-macOS-AppleSilicon.zip`
+- Intel Mac: `NICTAnalogClock-macOS-Intel.zip`
+- Windows 10・11（64bit）: `NICTAnalogClock-Windows-x64.exe`
+
+macOSのZIPを展開し、`NICTAnalogClock.app`をアプリケーションフォルダーへ移動して起動します。Windowsはダウンロードしたexeを起動します。SHA256SUMS.txtでファイルのチェックサムを確認できます。
+
+配布物はDeveloper ID署名・Apple公証およびAuthenticode署名を行っていません。macOSのGatekeeperやWindowsのSmartScreenの確認が表示されることがあります。macOSでは配布元を確認したうえでシステム設定の「プライバシーとセキュリティ」からOSの手順に従ってください。管理端末では管理者の方針に従ってください。
+
+## macOSでソースからインストール・起動
 
 Python 3.11以上をインストールし、ターミナルでこのフォルダーに移動してください。
 
@@ -13,7 +25,7 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-## Windowsでインストール・起動
+## Windowsでソースからインストール・起動
 
 Python 3.11以上（64bit推奨）をインストールし、PowerShellでこのフォルダーに移動します。仮想環境の有効化は不要です。
 
@@ -99,7 +111,9 @@ powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
 
 出力は単一ファイルの `dist\NICTAnalogClock.exe`。コンソールウィンドウは表示しません。Authenticode署名は含みません。初回起動時にPyInstallerの展開処理が入ります。
 
-両スクリプトは専用の `.venv-build` を作成し、tzdataを含めてパッケージ化します。`.github/workflows/build.yml` にはmacOS / Windowsのネイティブビルドを手動実行するGitHub Actionsも用意しました。このフォルダーの内容をリポジトリのルートに配置して利用してください。CIはこの納品時点では未実行です。
+両スクリプトは専用の `.venv-build` を作成し、tzdataを含めてパッケージ化します。`.github/workflows/build.yml` はmacOSのApple Silicon / Intel、Windows x64でテスト・ビルド・配布物の自動起動確認を行い、3つすべて成功した場合のみGitHub Releasesへ公開します。`RELEASE_VERSION`を新しい番号に変更してmainへ反映すると起動します。Actions画面からの手動実行もできます。同じバージョンの再公開は行わず、新しい番号を指定してください。
+
+配布物の`--smoke-test`オプションは約1秒描画して終了します。このモードではNTP通信やユーザー設定の読み書きを行いません。自動起動確認用で、通常の起動には指定しません。
 
 ## トラブルシューティング
 
@@ -113,4 +127,6 @@ powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
 
 ## 検証済み範囲
 
-納品時はLinux / Python 3.12 / PySide6 6.12のoffscreen環境で自動テストと描画・GUI起動を検証しました。`ntp.nict.jp`への実UDP問い合わせは通信失敗となり、この環境での実同期は未確認です。macOS / Windows実機での起動、DPI・透過・スリープ復帰・自動起動、ネイティブ配布物のビルド・署名は未実施です。macOS / Windows向けのソースとビルド手順を提供するもので、検証済みの.app / .exeバイナリは同梱していません。
+Linux / Python 3.12 / PySide6 6.12のoffscreen環境で自動テストと描画・GUI起動を検証しました。各配布版のOS別ビルドと起動確認の結果はGitHub ActionsのNative desktop buildsを参照してください。自動起動確認はoffscreenで行うため、ネイティブな対話操作、DPI・透過・スリープ復帰・ログイン時自動起動の実機検証を代替しません。
+
+開発環境からの`ntp.nict.jp`への実UDP問い合わせは通信失敗となり、実回線での同期精度は未確認です。配布物にはPython、PySide6、タイムゾーンデータを同梱しますが、OSのセキュリティ署名・Apple公証は含みません。

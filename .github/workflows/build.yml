@@ -1,30 +1,114 @@
 name: Native desktop builds
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - RELEASE_VERSION
+      - .github/workflows/build.yml
+permissions:
+  contents: read
+concurrency:
+  group: native-release-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        include:
+          - os: macos-15
+            name: macOS-AppleSilicon
+            arch: arm64
+          - os: macos-15-intel
+            name: macOS-Intel
+            arch: x64
+          - os: windows-latest
+            name: Windows-x64
+            arch: x64
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          architecture: ${{ matrix.arch }}
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
       - if: runner.os == 'macOS'
         run: bash build_mac.sh
+        env:
+          NICT_PYTHON: python
       - if: runner.os == 'Windows'
         shell: pwsh
-        run: ./build_windows.ps1
-      - if: runner.os == 'macOS'
-        run: ditto -c -k --sequesterRsrc --keepParent dist/NICTAnalogClock.app dist/NICTAnalogClock-macOS.zip
+        run: ./build_windows.ps1 -Python python
+      - name: Smoke test packaged application (no NTP or saved settings)
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python - <<'PY'
+          import os, subprocess
+          executable = 'dist/NICTAnalogClock.exe' if os.name == 'nt' else 'dist/NICTAnalogClock.app/Contents/MacOS/NICTAnalogClock'
+          subprocess.run([executable, '--smoke-test'], check=True, timeout=90)
+          PY
+      - name: Package macOS app
+        if: runner.os == 'macOS'
+        run: ditto -c -k --sequesterRsrc --keepParent dist/NICTAnalogClock.app dist/NICTAnalogClock-${{ matrix.name }}.zip
+      - name: Name Windows executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Move-Item dist/NICTAnalogClock.exe dist/NICTAnalogClock-${{ matrix.name }}.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: NICTAnalogClock-${{ runner.os }}
+          name: NICTAnalogClock-${{ matrix.name }}
+          if-no-files-found: error
           path: |
             dist/*.zip
             dist/*.exe
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Checksums and release notes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root = Path('release-assets')
+          assets = sorted(root.glob('NICTAnalogClock-*'))
+          assert len(assets) == 3, f'Expected three packages: {assets}'
+          (root/'SHA256SUMS.txt').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in assets))
+          PY
+          cat > release-notes.md <<'NOTES'
+          ## NICT Analog Clock 配布版
+          - **macOS-AppleSilicon.zip**: M1 / M2 / M3 / M4などApple Silicon向け。展開したNICTAnalogClock.appをアプリケーションへ移動してください。
+          - **macOS-Intel.zip**: Intel Mac向け。同様に展開して使用してください。
+          - **Windows-x64.exe**: Windows 10 / 11（64bit）向け。Pythonのインストールは不要です。
+
+          各OSでテストとビルド済みアプリの自動起動・終了確認を実行しています。対話操作・実NTP通信・スリープ復帰の実機確認は含みません。
+
+          **署名・公証について**: macOSのDeveloper ID署名・Apple公証とWindowsのAuthenticode署名は行っていません。macOSのGatekeeperやWindowsのSmartScreenによる確認が表示されることがあります。署名済み製品としての配布ではありません。
+
+          macOSでは自分で取得した配布物であることを確認し、起動が止められた場合は「システム設定 → プライバシーとセキュリティ」からOSの手順に従ってください。企業端末では管理者の方針に従ってください。
+
+          詳しい操作方法・UDP 123の通信条件はREADMEをご覧ください。SHA256SUMS.txtを同梱しています。
+          NOTES
+      - name: Publish downloadable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(tr -d '\r\n' < RELEASE_VERSION)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh release create "v$version" release-assets/* --target "$GITHUB_SHA" --title "NICT Analog Clock v$version" --notes-file release-notes.md --draft
+          gh release edit "v$version" --draft=false --latest
