@@ -14,6 +14,9 @@ class Config:
     theme: str = "Classic"
     seconds: bool = True
     sweep: bool = True
+    clock_only: bool = False
+    show_status: bool = True
+    show_controls: bool = True
     digital: bool = True
     milliseconds: bool = False
     size: int = 320

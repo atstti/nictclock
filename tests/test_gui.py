@@ -126,3 +126,54 @@ def test_transparent_dial_keeps_contrast():
         assert face.pixelColor(round(160 * ratio), round(90 * ratio)).alpha() >= 235
         assert face.pixelColor(0, 0).alpha() == 0
         widget.close()
+
+
+def test_clock_only_and_independent_footer_visibility(tmp_path):
+    from main import Window
+    from config import save, load
+
+    app = QApplication.instance() or QApplication([])
+    with (
+        patch("main.load", return_value=Config()),
+        patch("main.save"),
+        patch.object(Window, "sync"),
+    ):
+        window = Window()
+        window.show()
+        window.settings()
+        app.processEvents()
+        window.dialog.controls["show_status"].setChecked(False)
+        assert window.status.isHidden()
+        assert not window.digital.isHidden()
+        assert not window.toolbar.isHidden()
+        window.dialog.controls["clock_only"].setChecked(True)
+        app.processEvents()
+        assert all(
+            widget.isHidden()
+            for widget in (window.digital, window.status, window.toolbar)
+        )
+        assert not window.clock.isHidden()
+        assert window.clock.height() > window.height() - 30
+        # Right-click action uses this slot; restore the user's individual choices.
+        window.toggle_clock_only(False)
+        assert not window.digital.isHidden()
+        assert window.status.isHidden()
+        assert not window.toolbar.isHidden()
+        assert not window.dialog.controls["clock_only"].isChecked()
+        assert "border-radius" not in window.digital.styleSheet()
+        window.dialog.controls["digital"].setChecked(False)
+        window.dialog.controls["show_controls"].setChecked(False)
+        assert all(
+            widget.isHidden()
+            for widget in (window.digital, window.status, window.toolbar)
+        )
+        path = tmp_path / "settings.json"
+        save(window.config, path)
+        restored = load(path)
+        assert (
+            not restored.show_status
+            and not restored.show_controls
+            and not restored.digital
+        )
+        window.dialog.close()
+        window.close()

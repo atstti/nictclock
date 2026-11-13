@@ -54,7 +54,9 @@ class Window(QWidget):
         self.status.setWordWrap(True)
         self.status.setStyleSheet("font-size: 10px;")
         layout.addWidget(self.status)
-        row = QHBoxLayout()
+        self.toolbar = QWidget()
+        row = QHBoxLayout(self.toolbar)
+        row.setContentsMargins(0, 0, 0, 0)
         self.sync_button = QToolButton()
         self.sync_button.setToolTip("今すぐ同期")
         self.sync_button.setAccessibleName("今すぐ同期")
@@ -72,7 +74,7 @@ class Window(QWidget):
         row.addStretch()
         self.grip = QSizeGrip(self)
         row.addWidget(self.grip)
-        layout.addLayout(row)
+        layout.addWidget(self.toolbar)
         self.apply_visual()
         self.resize(self.config.size, self.config.size)
         if self.config.geometry:
@@ -160,13 +162,8 @@ class Window(QWidget):
             QToolButton:pressed {{ background: rgba(128,138,150,150); }}
             QToolButton:disabled {{ color: #888888; border-color: rgba(128,138,150,35); }}
         """)
-        for label in (self.digital, self.status):
-            label.setStyleSheet(
-                f"background: {panel}; border-radius: 8px; padding: 4px;"
-                + ("font-size: 10px;" if label is self.status else "")
-                if self.config.transparent
-                else ("font-size: 10px;" if label is self.status else "")
-            )
+        self.digital.setStyleSheet("background: transparent;")
+        self.status.setStyleSheet("background: transparent; font-size: 10px;")
         palette = self.palette()
         palette.setColor(
             self.backgroundRole(),
@@ -176,7 +173,11 @@ class Window(QWidget):
         )
         self.setPalette(palette)
         self.setAutoFillBackground(not self.config.transparent)
-        self.digital.setVisible(self.config.digital)
+        self.digital.setVisible(self.config.digital and not self.config.clock_only)
+        self.status.setVisible(self.config.show_status and not self.config.clock_only)
+        self.toolbar.setVisible(
+            self.config.show_controls and not self.config.clock_only
+        )
         self.clock.config = self.config
         self.clock.cache_key = None
         if native_changed:
@@ -319,6 +320,10 @@ class Window(QWidget):
         menu = QMenu(self)
         menu.addAction("今すぐ同期", self.sync)
         menu.addAction("設定", self.settings)
+        clock_only = menu.addAction("文字盤だけ")
+        clock_only.setCheckable(True)
+        clock_only.setChecked(self.config.clock_only)
+        clock_only.triggered.connect(self.toggle_clock_only)
         action = menu.addAction("常に最前面")
         action.setCheckable(True)
         action.setChecked(self.config.on_top)
@@ -326,6 +331,20 @@ class Window(QWidget):
         menu.addAction("最小化", self.showMinimized)
         menu.addAction("終了", self.close)
         menu.exec(event.globalPos())
+
+    def toggle_clock_only(self, checked):
+        self.config = replace(self.config, clock_only=checked)
+        self.apply_visual()
+        if hasattr(self, "dialog"):
+            self.dialog.config = self.config
+            checkbox = self.dialog.controls["clock_only"]
+            checkbox.blockSignals(True)
+            checkbox.setChecked(checked)
+            checkbox.blockSignals(False)
+        try:
+            save(self.config)
+        except OSError:
+            QMessageBox.warning(self, "保存エラー", "表示設定を保存できませんでした。")
 
     def toggle_top(self, checked):
         self.config = replace(self.config, on_top=checked)

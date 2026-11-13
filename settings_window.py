@@ -29,7 +29,10 @@ class SettingsWindow(QDialog):
             "theme": "デザイン",
             "seconds": "秒針を表示",
             "sweep": "スイープ秒針",
-            "digital": "デジタル表示",
+            "clock_only": "文字盤だけ（下の表示をすべて隠す）",
+            "digital": "デジタル時刻・日付を表示",
+            "show_status": "同期情報を表示",
+            "show_controls": "同期・設定ボタンを表示",
             "milliseconds": "ミリ秒を表示",
             "size": "時計サイズ（px）",
             "transparent": "背景透過",
@@ -65,11 +68,18 @@ class SettingsWindow(QDialog):
             self.controls[name] = control
             form.addRow(label, control)
         hint = QLabel(
-            "背景透過中は枠なしになります。\n文字盤の外側を透過し、文字盤は読みやすく保ちます。"
+            "背景透過中は枠なしになります。\n文字盤の外側を透過し、文字盤は読みやすく保ちます。\n文字盤だけの表示からは右クリック→設定で戻せます。"
         )
         hint.setWordWrap(True)
         form.addRow(hint)
-        for name in ("frameless", "transparent"):
+        for name in (
+            "frameless",
+            "transparent",
+            "clock_only",
+            "digital",
+            "show_status",
+            "show_controls",
+        ):
             self.controls[name].toggled.connect(lambda _checked: self.apply())
         button = QPushButton("適用")
         button.clicked.connect(self.apply)
