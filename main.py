@@ -1,10 +1,11 @@
 import sys
+from pathlib import Path
 import time
 from concurrent.futures import Future
 import threading
 from dataclasses import replace
 from PySide6.QtCore import Qt, QTimer, QByteArray, QEvent
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QWidget,
@@ -388,6 +389,20 @@ class Window(QWidget):
 
 def main():
     app = QApplication(sys.argv)
+    assets = Path(__file__).resolve().parent / "assets"
+    icon_path = assets / "app-icon.png"
+    if not icon_path.exists():
+        icon_path = assets / "icon-master.webp"
+    icon = QIcon(str(icon_path))
+    if icon.isNull() or icon.pixmap(32, 32).isNull():
+        raise RuntimeError("アプリのアイコンを読み込めませんでした")
+    app.setWindowIcon(icon)
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "NICTAnalogClock.Desktop"
+        )
     app.setApplicationName("NICT Analog Clock")
     app.setOrganizationName("NICTAnalogClock")
     from PySide6.QtNetwork import QNetworkInformation

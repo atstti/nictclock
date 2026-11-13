@@ -1,5 +1,7 @@
 # NICT Analog Clock
 
+<img src="assets/icon-master.webp" width="128" alt="NICT Analog Clock アイコン">
+
 Python 3.11以上とPySide6で動作するmacOS / Windows 10・11向けアナログ時計です。NICTの公式アプリではありません。OSの時計は変更しません。
 
 ## 配布版のダウンロード
@@ -110,6 +112,8 @@ powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
 ```
 
 出力は単一ファイルの `dist\NICTAnalogClock.exe`。コンソールウィンドウは表示しません。Authenticode署名は含みません。初回起動時にPyInstallerの展開処理が入ります。
+
+アイコン原画は `assets/icon-master.webp` です。ビルド時に `scripts/build_icons.py` が1024pxのPNG、複数解像度のWindows用ICO、macOS用ICNSに変換し、実行ファイル・バンドルとQtのウィンドウアイコンに組み込みます。ソースからの起動でも原画を使用します。
 
 両スクリプトは専用の `.venv-build` を作成し、tzdataを含めてパッケージ化します。`.github/workflows/build.yml` はmacOSのApple Silicon / Intel、Windows x64でテスト・ビルド・配布物の自動起動確認を行い、3つすべて成功した場合のみGitHub Releasesへ公開します。`RELEASE_VERSION`を新しい番号に変更してmainへ反映すると起動します。Actions画面からの手動実行もできます。同じバージョンの再公開は行わず、新しい番号を指定してください。
 

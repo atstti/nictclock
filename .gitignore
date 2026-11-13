@@ -4,3 +4,6 @@ __pycache__/
 build/
 dist/
 *.spec
+assets/app-icon.png
+assets/app-icon.ico
+assets/app-icon.icns
